@@ -25,7 +25,7 @@ interface PRDetails {
 
 async function getPRDetails(): Promise<PRDetails> {
   const { repository, number } = JSON.parse(
-    readFileSync(process.env.GITHUB_EVENT_PATH || "", "utf8")
+    readFileSync(process.env.GITHUB_EVENT_PATH || "", "utf8"),
   );
   const prResponse = await octokit.pulls.get({
     owner: repository.owner.login,
@@ -44,7 +44,7 @@ async function getPRDetails(): Promise<PRDetails> {
 async function getDiff(
   owner: string,
   repo: string,
-  pull_number: number
+  pull_number: number,
 ): Promise<string | null> {
   const response = await octokit.pulls.get({
     owner,
@@ -58,7 +58,7 @@ async function getDiff(
 
 async function analyzeCode(
   parsedDiff: File[],
-  prDetails: PRDetails
+  prDetails: PRDetails,
 ): Promise<Array<{ body: string; path: string; line: number }>> {
   const comments: Array<{ body: string; path: string; line: number }> = [];
 
@@ -152,7 +152,7 @@ function createComment(
   aiResponses: Array<{
     lineNumber: string;
     reviewComment: string;
-  }>
+  }>,
 ): Array<{ body: string; path: string; line: number }> {
   return aiResponses.flatMap((aiResponse) => {
     if (!file.to) {
@@ -170,7 +170,7 @@ async function createReviewComment(
   owner: string,
   repo: string,
   pull_number: number,
-  comments: Array<{ body: string; path: string; line: number }>
+  comments: Array<{ body: string; path: string; line: number }>,
 ): Promise<void> {
   await octokit.pulls.createReview({
     owner,
@@ -185,18 +185,22 @@ async function main() {
   const prDetails = await getPRDetails();
   let diff: string | null;
   const eventData = JSON.parse(
-    readFileSync(process.env.GITHUB_EVENT_PATH ?? "", "utf8")
+    readFileSync(process.env.GITHUB_EVENT_PATH ?? "", "utf8"),
   );
 
-  console.log("Event data:", eventData);
-
-  if (eventData.action === "opened" || eventData.action === "reopened" || eventData.action === "labeled") {
+  if (
+    eventData.action === "opened" ||
+    eventData.action === "reopened" ||
+    eventData.action === "labeled"
+  ) {
+    console.log("Getting diff for opened, reopened, or labeled event");
     diff = await getDiff(
       prDetails.owner,
       prDetails.repo,
-      prDetails.pull_number
+      prDetails.pull_number,
     );
   } else if (eventData.action === "synchronize") {
+    console.log("Getting diff for synchronize event");
     const newBaseSha = eventData.before;
     const newHeadSha = eventData.after;
 
@@ -230,9 +234,14 @@ async function main() {
 
   const filteredDiff = parsedDiff.filter((file) => {
     return !excludePatterns.some((pattern) =>
-      minimatch(file.to ?? "", pattern)
+      minimatch(file.to ?? "", pattern),
     );
   });
+
+  if (filteredDiff.length === 0) {
+    console.log("No files to review");
+    return;
+  }
 
   const comments = await analyzeCode(filteredDiff, prDetails);
   if (comments.length > 0) {
@@ -240,8 +249,10 @@ async function main() {
       prDetails.owner,
       prDetails.repo,
       prDetails.pull_number,
-      comments
+      comments,
     );
+  } else {
+    console.log("No comments to create");
   }
 }
 

@@ -192,11 +192,14 @@ function main() {
         const prDetails = yield getPRDetails();
         let diff;
         const eventData = JSON.parse((0, fs_1.readFileSync)((_a = process.env.GITHUB_EVENT_PATH) !== null && _a !== void 0 ? _a : "", "utf8"));
-        console.log("Event data:", eventData);
-        if (eventData.action === "opened" || eventData.action === "reopened" || eventData.action === "labeled") {
+        if (eventData.action === "opened" ||
+            eventData.action === "reopened" ||
+            eventData.action === "labeled") {
+            console.log("Getting diff for opened, reopened, or labeled event");
             diff = yield getDiff(prDetails.owner, prDetails.repo, prDetails.pull_number);
         }
         else if (eventData.action === "synchronize") {
+            console.log("Getting diff for synchronize event");
             const newBaseSha = eventData.before;
             const newHeadSha = eventData.after;
             const response = yield octokit.repos.compareCommits({
@@ -226,9 +229,16 @@ function main() {
         const filteredDiff = parsedDiff.filter((file) => {
             return !excludePatterns.some((pattern) => { var _a; return (0, minimatch_1.default)((_a = file.to) !== null && _a !== void 0 ? _a : "", pattern); });
         });
+        if (filteredDiff.length === 0) {
+            console.log("No files to review");
+            return;
+        }
         const comments = yield analyzeCode(filteredDiff, prDetails);
         if (comments.length > 0) {
             yield createReviewComment(prDetails.owner, prDetails.repo, prDetails.pull_number, comments);
+        }
+        else {
+            console.log("No comments to create");
         }
     });
 }
