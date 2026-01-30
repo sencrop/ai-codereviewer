@@ -1,9 +1,9 @@
-import { readFileSync } from "fs";
 import * as core from "@actions/core";
-import OpenAI from "openai";
 import { Octokit } from "@octokit/rest";
-import parseDiff, { Chunk, File } from "parse-diff";
+import { readFileSync } from "fs";
 import minimatch from "minimatch";
+import OpenAI from "openai";
+import parseDiff, { Chunk, File } from "parse-diff";
 
 const GITHUB_TOKEN: string = core.getInput("GITHUB_TOKEN");
 const OPENAI_API_KEY: string = core.getInput("OPENAI_API_KEY");
@@ -188,7 +188,9 @@ async function main() {
     readFileSync(process.env.GITHUB_EVENT_PATH ?? "", "utf8")
   );
 
-  if (eventData.action === "opened") {
+  console.log("Event data:", eventData);
+
+  if (eventData.action === "opened" || eventData.action === "reopened" || eventData.action === "labeled") {
     diff = await getDiff(
       prDetails.owner,
       prDetails.repo,
